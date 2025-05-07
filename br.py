@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import pathlib
 
 import angr
@@ -34,7 +35,7 @@ print("text_end", hex(text_end))
 current_addr = text_start
 brlist = []
 
-if pathlib.Path.exists("./br.json"):
+if os.path.exists("./br.json"):
     br_json = open("./br.json").read()
     brlist = json.loads(br_json)
 else:
@@ -93,7 +94,9 @@ def evlBr(addr, reg):
                 sim.step(num_inst=1)
                 lastPc += 4
                 break
-
+            if lastPc == pc:
+                active_state.regs.pc += 4
+                break
             lastPc = pc
             if pc == addr:
                 try:
