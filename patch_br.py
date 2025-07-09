@@ -1,14 +1,7 @@
 import json
 import idaapi
 import idc
-
-
-def get_text_segment_range():
-    seg = idaapi.get_segm_by_name(".text")
-    if seg is None:
-        print("Error: Could not find .text segment")
-        return None
-    return seg.start_ea, seg.end_ea
+from ida_tools import get_text_segment_range
 
 
 def is_address_in_text_segment(addr, text_range):
