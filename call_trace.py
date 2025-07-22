@@ -79,8 +79,8 @@ def load_trace(path):
     return result
 
 
-def make_call_trace(data: list[CallInfo]):
-    # 为每个 call/ret 获取 IDA 符号名并标记 PLT
+def make_call_trace(path):
+    data = load_trace(path)
     for item in data:
         if item.type == "call":
             item.fromIdaSymbolName = get_function_symbol_at_offset(item.fromOffset)
@@ -122,12 +122,18 @@ def make_call_trace(data: list[CallInfo]):
                 pass
     result = ""
     for item in data:
-        indent = "  " * item.depth
+        indent = "\t" * item.depth
         if item.type == "call":
-            line = indent + item.toSymbolName + "[" + hex(item.toOffset) + "][" + hex(item.fromOffset) + "]"
+            funcName = item.toSymbolName
+            if not funcName:
+                funcName = item.toIdaSymbolName
+            if not funcName:
+                funcName = ""
+            line = indent + funcName + "[" + hex(item.toOffset) + "][" + hex(item.fromOffset) + "]"
             result += line + "\n"
             print(line)
+    open(path + "/../call_trace.txt", "w").write(result)
 
 
 # make_call_trace(load_trace(r"D:\desktop\ollvm\360\log\trace_3358_619128571"))
-make_call_trace(load_trace(r"F:\desktop\360\log\trace_12254_1278053216"))
+make_call_trace(r"F:\desktop\360\log\trace_12254_1278053216")
