@@ -120,11 +120,13 @@ def make_call_trace(data: list[CallInfo]):
                 curDepth -= 1
             if curDepth < 0:
                 pass
-
+    result = ""
     for item in data:
         indent = "  " * item.depth
         if item.type == "call":
-            print(indent + item.toSymbolName + "[" + hex(item.toOffset) + "][" + hex(item.fromOffset) + "]")
+            line = indent + item.toSymbolName + "[" + hex(item.toOffset) + "][" + hex(item.fromOffset) + "]"
+            result += line + "\n"
+            print(line)
 
 
 # make_call_trace(load_trace(r"D:\desktop\ollvm\360\log\trace_3358_619128571"))
