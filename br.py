@@ -15,7 +15,7 @@ logging.getLogger('cle').setLevel(logging.ERROR)
 
 disasm = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
 
-project = angr.Project(r'D:\desktop\ollvm\vbox\l03c1596c_a64.so', auto_load_libs=False,
+project = angr.Project(r'D:\desktop\保活\7.17\l41739d0d_a64.so', auto_load_libs=False,
                        load_options={'main_opts': {'base_addr': 0}})
 state = project.factory.entry_state()
 base = project.loader.min_addr

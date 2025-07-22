@@ -41,9 +41,31 @@ def get_all_blocks(func_ea):
         stack.extend(item.succs())
     return viewed
 
+
 def get_text_segment_range():
     seg = idaapi.get_segm_by_name(".text")
     if seg is None:
         print("Error: Could not find .text segment")
         return None
     return seg.start_ea, seg.end_ea
+
+
+def get_function_symbol_at_offset(offset):
+    if not idc.is_mapped(offset):
+        return None
+    func = idaapi.get_func(offset)
+    if not func:
+        return None
+    func_name = idc.get_func_name(offset)
+    if not func_name:
+        return None
+    demangled_name = idc.demangle_name(func_name, idc.get_inf_attr(idc.INF_SHORT_DN))
+    return demangled_name if demangled_name else func_name
+
+
+def is_in_plt(address):
+    seg = idaapi.getseg(address)
+    if not seg:
+        return False
+    seg_name = idc.get_segm_name(seg.start_ea)
+    return seg_name in [".plt", ".plt.got"]
