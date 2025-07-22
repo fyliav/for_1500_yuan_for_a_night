@@ -1,29 +1,26 @@
-from collections import deque
+import idaapi
+import idc
 
 
-# import idaapi
-# import idc
+def get_function_symbol_at_offset(offset):
+    if not idc.is_mapped(offset):
+        return None
+    func = idaapi.get_func(offset)
+    if not func:
+        return None
+    func_name = idc.get_func_name(offset)
+    if not func_name:
+        return None
+    demangled_name = idc.demangle_name(func_name, idc.get_inf_attr(idc.INF_SHORT_DN))
+    return demangled_name if demangled_name else func_name
 
 
-# def get_function_symbol_at_offset(offset):
-#     if not idc.is_mapped(offset):
-#         return None
-#     func = idaapi.get_func(offset)
-#     if not func:
-#         return None
-#     func_name = idc.get_func_name(offset)
-#     if not func_name:
-#         return None
-#     demangled_name = idc.demangle_name(func_name, idc.get_inf_attr(idc.INF_SHORT_DN))
-#     return demangled_name if demangled_name else func_name
-#
-#
-# def is_in_plt(address):
-#     seg = idaapi.getseg(address)
-#     if not seg:
-#         return False
-#     seg_name = idc.get_segm_name(seg.start_ea)
-#     return seg_name in [".plt", ".plt.got"]
+def is_in_plt(address):
+    seg = idaapi.getseg(address)
+    if not seg:
+        return False
+    seg_name = idc.get_segm_name(seg.start_ea)
+    return seg_name in [".plt", ".plt.got"]
 
 
 class CallInfo:
@@ -84,11 +81,11 @@ def load_trace(path):
 
 def make_call_trace(data: list[CallInfo]):
     # 为每个 call/ret 获取 IDA 符号名并标记 PLT
-    # for item in data:
-    #     if item.type == "call":
-    #         item.fromIdaSymbolName = get_function_symbol_at_offset(item.fromOffset)
-    #         item.toIdaSymbolName = get_function_symbol_at_offset(item.toOffset)
-    #         item.isPlt = is_in_plt(item.toAddr)
+    for item in data:
+        if item.type == "call":
+            item.fromIdaSymbolName = get_function_symbol_at_offset(item.fromOffset)
+            item.toIdaSymbolName = get_function_symbol_at_offset(item.toOffset)
+            item.isPlt = is_in_plt(item.toAddr)
 
     call_stack = []
     for item in data:
