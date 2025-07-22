@@ -42,6 +42,8 @@ class CallInfo:
         self.fromIdaSymbolName = None
         self.toIdaSymbolName = None
         self.isPlt = False
+        self.ret = None
+        self.call = None
 
 
 def load_trace(path):
@@ -56,15 +58,15 @@ def load_trace(path):
         if sp[0] == "call":
             info.type = "call"
             info.jumpOut = sp[1]
-            info.depth = int(sp[2])  # 原始深度
-            info.fromModuleName = sp[3]
-            info.fromSymbolName = sp[4]
-            info.fromAddr = int(sp[5], 16)
-            info.fromOffset = int(sp[6], 16)
-            info.toModuleName = sp[7]
-            info.toSymbolName = sp[8]
-            info.toAddr = int(sp[9], 16)
-            info.toOffset = int(sp[10], 16)
+            info.depth = int(sp[3])
+            info.fromModuleName = sp[4]
+            info.fromSymbolName = sp[5]
+            info.fromAddr = int(sp[6], 16)
+            info.fromOffset = int(sp[7], 16)
+            info.toModuleName = sp[8]
+            info.toSymbolName = sp[9]
+            info.toAddr = int(sp[10], 16)
+            info.toOffset = int(sp[11], 16)
         else:
             info.type = "ret"
             info.depth = int(sp[1])
@@ -88,49 +90,45 @@ def make_call_trace(data: list[CallInfo]):
     #         item.toIdaSymbolName = get_function_symbol_at_offset(item.toOffset)
     #         item.isPlt = is_in_plt(item.toAddr)
 
-
-    call_stack = deque()
-    corrected_data = []
-    current_depth = 0
-
+    call_stack = []
     for item in data:
         if item.type == "call":
-            call_stack.append((item.fromAddr, item.toAddr, current_depth))
-            item.depth = current_depth
-            current_depth += 1
-            corrected_data.append(item)
-            # 如果是 PLT 调用（外部函数），假设无 ret，立即减少深度
-            if item.isPlt:
-                current_depth -= 1
-                call_stack.pop()  # 移除 PLT 调用
-        elif item.type == "ret":
-            # 查找匹配的 call（ret 的 toAddr 应匹配 call 的 toAddr）
-            while call_stack:
-                last_call = call_stack[-1]
-                if last_call[1] == item.toAddr:  # 匹配 call 的目标地址
-                    item.depth = last_call[2]
-                    call_stack.pop()
-                    current_depth = last_call[2]
-                    corrected_data.append(item)
+            call_stack.append(item)
+        else:
+            lastAddr = item.toAddr - 4
+            find = False
+            for i in range(len(call_stack) - 1, 0, -1):
+                stack = call_stack[i]
+                if stack.fromAddr == lastAddr:
+                    stack.ret = item
+                    item.call = stack
+                    call_stack.remove(stack)
+                    find = True
                     break
-                else:
-                    call_stack.pop()
-                    current_depth -= 1
-            else:
-                item.depth = current_depth
-                corrected_data.append(item)
+            if not find:
+                # print("not find call for ret: ", hex(item.fromOffset))
+                pass
 
-    # 按深度缩进输出
-    for item in corrected_data:
+    curDepth = 0
+    for i in range(0, len(data)):
+        item = data[i]
+        if item.type == "call":
+            if item.fromOffset == 0x14904:
+                pass
+            item.depth = curDepth
+            if item.ret is not None:
+                curDepth += 1
+        else:
+            if item.call is not None:
+                curDepth -= 1
+            if curDepth < 0:
+                pass
+
+    for item in data:
         indent = "  " * item.depth
         if item.type == "call":
-            symbol_info = f"{item.toIdaSymbolName or item.toSymbolName or 'Unknown'}@0x{item.fromOffset:x}@0x{item.toOffset:x}"
-            if item.isPlt:
-                symbol_info += " [PLT]"
-            print(f"{indent}call: {symbol_info}")
-        else:
-            symbol_info = f"{item.toIdaSymbolName or item.toSymbolName or 'Unknown'}@0x{item.toOffset:x}"
-            print(f"{indent}ret: {symbol_info}")
+            print(indent + item.toSymbolName + "[" + hex(item.toOffset) + "][" + hex(item.fromOffset) + "]")
 
 
-make_call_trace(load_trace(r"D:\desktop\ollvm\360\log\trace_3358_619128571"))
+# make_call_trace(load_trace(r"D:\desktop\ollvm\360\log\trace_3358_619128571"))
+make_call_trace(load_trace(r"F:\desktop\360\log\trace_12254_1278053216"))
