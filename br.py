@@ -15,8 +15,8 @@ logging.getLogger('cle').setLevel(logging.ERROR)
 
 disasm = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
 
-project = angr.Project(r'D:\desktop\保活\7.17\l41739d0d_a64.so', auto_load_libs=False,
-                       load_options={'main_opts': {'base_addr': 0}})
+project = angr.Project(r'D:\desktop\ollvm\360\ida\rep.so', auto_load_libs=False,
+                       load_options={'main_opts': {'base_addr': 0xC8000}})
 state = project.factory.entry_state()
 base = project.loader.min_addr
 
@@ -26,8 +26,11 @@ for section in project.loader.main_object.sections:
         text_section = section
         break
 
-text_start = text_section.vaddr
-text_end = text_section.vaddr + 0x294df4
+# text_start = text_section.vaddr
+# text_end = text_section.vaddr + 0x294df4
+text_start = 0xF3C8C
+text_end = 0x1C597C
+
 print("base", hex(base))
 print("text_start", hex(text_start))
 print("text_end", hex(text_end))
@@ -125,6 +128,8 @@ for item in brlist:
             item["real"] = evlBr(item["addr"], item["reg"])
     except Exception as e:
         print(e)
+
+open("./br.json", "w").write(json.dumps(brlist))
 print(brlist)
 
 # def trace_register_value(project, target_addr, register_name):

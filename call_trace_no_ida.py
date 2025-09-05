@@ -1,28 +1,3 @@
-import idaapi
-import idc
-
-
-def get_function_symbol_at_offset(offset):
-    if not idc.is_mapped(offset):
-        return None
-    func = idaapi.get_func(offset)
-    if not func:
-        return None
-    func_name = idc.get_func_name(offset)
-    if not func_name:
-        return None
-    demangled_name = idc.demangle_name(func_name, idc.get_inf_attr(idc.INF_SHORT_DN))
-    return demangled_name if demangled_name else func_name
-
-
-def is_in_plt(address):
-    seg = idaapi.getseg(address)
-    if not seg:
-        return False
-    seg_name = idc.get_segm_name(seg.start_ea)
-    return seg_name in [".plt", ".plt.got"]
-
-
 class CallInfo:
     def __init__(self):
         self.type = None
@@ -81,11 +56,6 @@ def load_trace(path):
 
 def make_call_trace(path):
     data = load_trace(path)
-    for item in data:
-        if item.type == "call":
-            item.fromIdaSymbolName = get_function_symbol_at_offset(item.fromOffset)
-            item.toIdaSymbolName = get_function_symbol_at_offset(item.toOffset)
-            item.isPlt = is_in_plt(item.toAddr)
 
     call_stack = []
     for item in data:
@@ -135,6 +105,5 @@ def make_call_trace(path):
     open(path + "/../call_trace.txt", "w").write(result)
 
 
-make_call_trace(r"D:\desktop\ollvm\360\log\trace5\trace_call_3920_2126448475")
-# make_call_trace(r"D:\desktop\ollvm\360\log\trace2\trace_call_18837_1724929177")
+make_call_trace(r"D:\desktop\ollvm\360\log\trace4\trace_call_32668_1580077634")
 # make_call_trace(r"F:\desktop\360\log\trace_12254_1278053216")
