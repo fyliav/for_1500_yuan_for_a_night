@@ -1,39 +1,39 @@
 [
   {
     "cmp": {
-      "address": 1034512,
+      "address": 1086084,
       "mnemonic": "cmp",
-      "op_str": "x0, #0"
+      "op_str": "w0, #0x4c"
     },
     "adrp": {
-      "address": 1034516,
+      "address": 1086088,
       "mnemonic": "adrp",
-      "op_str": "x9, #0x1f9000"
+      "op_str": "x9, #0x1fb000"
     },
     "cset": {
-      "address": 1034520,
+      "address": 1086092,
       "mnemonic": "cset",
-      "op_str": "w8, eq"
+      "op_str": "w8, lt"
     },
     "add": {
-      "address": 1034524,
+      "address": 1086096,
       "mnemonic": "add",
-      "op_str": "x9, x9, #0xd8"
+      "op_str": "x9, x9, #0x60"
     },
     "ldr": {
-      "address": 1034528,
+      "address": 1086100,
       "mnemonic": "ldr",
       "op_str": "x8, [x9, w8, uxtw #3]"
     },
     "br": {
-      "address": 1034540,
+      "address": 1086104,
       "mnemonic": "br",
       "op_str": "x8"
     },
     "jump_reg": 226,
     "ldr_base": 227,
     "ldr_index": 195,
-    "cmp_reg": 218,
-    "block_addr": 1034512
+    "cmp_reg": 187,
+    "block_addr": 1086084
   }
 ]
