@@ -323,6 +323,7 @@ def evl_br(br: BrIfInfo):
 
 
 def make_pathc_info(br_if_list):
+    result = []
     for item in br_if_list:
         r = evl_br_fast(item)
         if not r:
@@ -331,8 +332,11 @@ def make_pathc_info(br_if_list):
             item.true_value = r.get("true_value")
             item.false_value = r.get("false_value")
             item.value = r.get("value")
-
-    return br_if_list
+            result.append(item)
+            if len(result) % 10 == 0:
+                open("br_if_patch.json", "w").write(json.dumps(result, cls=BrIfInfoEncoder))
+    open("br_if_patch.json", "w").write(json.dumps(result, cls=BrIfInfoEncoder))
+    return result
 
 
 def bytes_to_chunks(data: bytes) -> list[bytes]:
@@ -463,11 +467,10 @@ def patch(br_list):
             patch.patch(r["addr"], r["codes"])
             r["codes"] = r["codes"].hex()
             result.append(r)
-            if len(result) % 10 == 0:
-                open("patch.json", "w").write(json.dumps(result))
     open("patch.json", "w").write(json.dumps(result))
     patch.save()
     return result
+
 
 # br_list = find_br_if()
 br_list = load_br_if()
