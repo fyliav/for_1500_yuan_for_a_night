@@ -463,8 +463,11 @@ def patch(br_list):
             patch.patch(r["addr"], r["codes"])
             r["codes"] = r["codes"].hex()
             result.append(r)
+            if len(result) % 10 == 0:
+                open("patch.json", "w").write(json.dumps(result))
+    open("patch.json", "w").write(json.dumps(result))
     patch.save()
-
+    return result
 
 # br_list = find_br_if()
 br_list = load_br_if()
