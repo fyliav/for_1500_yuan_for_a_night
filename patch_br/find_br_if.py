@@ -199,7 +199,7 @@ def find_args_reg(args):
     return result
 
 
-def get_value_or_reg(state, value):
+def get_value_or_reg_or_sym(state, value):
     if value.symbolic:
         reg = get_register_name(state, value)
         if reg:
@@ -209,19 +209,36 @@ def get_value_or_reg(state, value):
         return state.solver.eval(value)
 
 
-def ast2asm(state, value):
+def eval_value(state, value):
+    if not value.symbolic:
+        return state.solver.eval(value)
+    else:
+        return None
+
+
+def ast2value(state, value):
     if value.op == "If":
         condition = value.args[0]
+        true_value = eval_value(state, value.args[1])
+        false_value = eval_value(state, value.args[2])
+        if not true_value or not false_value:
+            return None
+        print(f"reg is if")
         return {
             "cond_op": condition.op,
-            "cond_l": get_value_or_reg(state, claripy.simplify(condition.args[0])),
-            "cond_r": get_value_or_reg(state, claripy.simplify(condition.args[1])),
-            "true_value": get_value_or_reg(state, value.args[1]),
-            "false_value": get_value_or_reg(state, value.args[2]),
+            "cond_l": get_value_or_reg_or_sym(state, claripy.simplify(condition.args[0])),
+            "cond_r": get_value_or_reg_or_sym(state, claripy.simplify(condition.args[1])),
+            "true_value": true_value,
+            "false_value": false_value,
+        }
+    elif not value.symbolic:
+        print(f"reg is value")
+        return {
+            "value": state.solver.eval(value)
         }
     else:
-        print("unknown op " + value.op, hex(state.regs.pc))
-        return {}
+        print("unknown reg " + value.op, state.regs.pc)
+        return None
 
 
 def disasm(state, pc):
@@ -232,7 +249,7 @@ def disasm(state, pc):
     return None
 
 
-def evlBr(br: BrIfInfo):
+def evl_br_fast(br: BrIfInfo):
     block: angr.Block = project.factory.block(br.block_addr)
     state = project.factory.blank_state(addr=block.addr)
     state.options.add(angr.options.CALLLESS)
@@ -249,22 +266,72 @@ def evlBr(br: BrIfInfo):
         return None
     reg = cs.reg_name(br.jump_reg)
     reg_value = sim.active[0].regs.get(reg)
-    if sim.active[0].solver.symbolic(reg_value):
-        # print(f"reg {reg} is sym")
-        return ast2asm(sim.active[0], reg_value)
-    else:
-        print(f"reg {reg} is value")
-        return {
-            "value": sim.active[0].solver.eval(reg_value, cast_to=int)
-        }
+    return ast2value(sim.active[0], reg_value)
+
+
+def evl_br(br: BrIfInfo):
+    addr = br.br.address
+    reg = cs.reg_name(br.jump_reg)
+    start = max(text_start, addr - 0x200)
+    if start < text_start:
+        start = text_start
+    state = project.factory.blank_state(addr=start)
+    state.options.add(angr.options.CALLLESS)  # Avoid external calls
+    sim = project.factory.simgr(state)
+    lastPc = start
+    # Step until target address, limit path explosion
+    while lastPc <= addr:
+        sim.step(num_inst=1)
+        if not len(sim.active) == 1:
+            print("---end---", hex(lastPc + 4))
+            state = project.factory.blank_state(addr=lastPc + 4)
+            sim = project.factory.simgr(state)
+            sim.step(num_inst=1)
+            lastPc += 4
+            continue
+
+        for active_state in sim.active[:]:
+            pc = active_state.solver.eval(active_state.regs.pc)
+            if pc < lastPc or pc > addr:
+                print("---end2---", hex(lastPc + 4))
+                state = project.factory.blank_state(addr=lastPc + 4)
+                sim = project.factory.simgr(state)
+                sim.step(num_inst=1)
+                lastPc += 4
+                break
+            if lastPc == pc:
+                active_state.regs.pc += 4
+                break
+            lastPc = pc
+            if pc == addr:
+                try:
+                    reg_value = active_state.regs.get(reg)
+                    if active_state.solver.symbolic(reg_value):
+                        print(f"reg {reg} is sym")
+                        return None
+                    concrete_value = active_state.solver.eval(reg_value, cast_to=int)
+                    print(f"reg {reg} is 0x{concrete_value:x}")
+                    return {
+                        "value": concrete_value
+                    }
+                except Exception as e:
+                    print(f"error: {e}")
+                    return None
+
+    print(f"not find 0x{addr:x}")
+    return None
 
 
 def make_pathc_info(br_if_list):
     for item in br_if_list:
-        r = evlBr(item)
-        item.true_value = r.get("true_value")
-        item.false_value = r.get("false_value")
-        item.value = r.get("value")
+        r = evl_br_fast(item)
+        if not r:
+            r = evl_br(item)
+        if r:
+            item.true_value = r.get("true_value")
+            item.false_value = r.get("false_value")
+            item.value = r.get("value")
+
     return br_if_list
 
 
@@ -388,9 +455,9 @@ def patch(br_list):
     result = []
     for br in br_list:
         r = None
-        if br.value != None:
+        if br.value:
             r = patch_br(br)
-        else:
+        elif br.true_value and br.false_value:
             r = patch_br_if(br)
         if r:
             patch.patch(r["addr"], r["codes"])
