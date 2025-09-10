@@ -38,8 +38,8 @@ print("text_end", hex(text_end))
 current_addr = text_start
 brlist = []
 
-if os.path.exists("./br.json"):
-    br_json = open("./br.json").read()
+if os.path.exists("br.json"):
+    br_json = open("br.json").read()
     brlist = json.loads(br_json)
 else:
     while current_addr < text_end:
@@ -53,7 +53,7 @@ else:
                     "reg": instr.op_str,
                 })
         current_addr += 4
-    open("./br.json", "w").write(json.dumps(brlist))
+    open("br.json", "w").write(json.dumps(brlist))
 
 print("br", brlist)
 
@@ -122,14 +122,14 @@ dump = 0
 for item in brlist:
     dump += 1
     if dump % 10 == 0:
-        open("./br.json", "w").write(json.dumps(brlist))
+        open("br.json", "w").write(json.dumps(brlist))
     try:
         if item.get("real") is None:
             item["real"] = evlBr(item["addr"], item["reg"])
     except Exception as e:
         print(e)
 
-open("./br.json", "w").write(json.dumps(brlist))
+open("br.json", "w").write(json.dumps(brlist))
 print(brlist)
 
 # def trace_register_value(project, target_addr, register_name):

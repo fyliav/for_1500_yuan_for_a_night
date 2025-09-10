@@ -52,7 +52,7 @@ def patch_br_instructions(instructions):
 
 
 try:
-    instructions = json.load(open(r"D:\desktop\ollvm_python\br.json"))
+    instructions = json.load(open(r"/br.json"))
     patch_br_instructions(instructions)
 except Exception as e:
     print(f"Error loading instructions.json: {e}")

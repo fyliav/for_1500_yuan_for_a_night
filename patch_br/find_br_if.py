@@ -41,6 +41,7 @@ class BrIfInfo:
         self.block_addr = None
         self.true_value = None
         self.false_value = None
+        self.value = None
 
 
 class BrIfInfoEncoder(json.JSONEncoder):
@@ -69,6 +70,7 @@ class BrIfInfoEncoder(json.JSONEncoder):
                 "block_addr": obj.block_addr,
                 "true_value": obj.true_value,
                 "false_value": obj.false_value,
+                "value": obj.value,
             }
 
 
@@ -106,7 +108,7 @@ def judge_br_if(block: angr.Block):
                     br.cmp = inst
                     br.cmp_reg = inst.operands[0].value.reg
                     break
-    if br.br:
+    if br.br and br.br.operands[0].type == CS_OP_REG:
         return br
     return None
 
@@ -121,7 +123,7 @@ def find_br_if():
             if info:
                 result.append(info)
                 if len(result) % 10 == 0:
-                    open("./br_if.json", "w").write(json.dumps(result, cls=BrIfInfoEncoder))
+                    open("br_if.json", "w").write(json.dumps(result, cls=BrIfInfoEncoder))
             if block.size == 0:
                 current_addr += 4
             else:
@@ -131,7 +133,7 @@ def find_br_if():
                 print("find_br_if", current_addr)
         except Exception as e:
             print(e)
-    open("./br_if.json", "w").write(json.dumps(result, cls=BrIfInfoEncoder))
+    open("br_if.json", "w").write(json.dumps(result, cls=BrIfInfoEncoder))
     return result
 
 
@@ -163,7 +165,7 @@ def load_br_if():
         return result
 
     result = []
-    data = json.loads(open("./br_if.json", "r").read())
+    data = json.loads(open("br_if.json", "r").read())
     for item in data:
         result.append(json2BrIfInfo(item))
     return result
@@ -218,7 +220,7 @@ def ast2asm(state, value):
             "false_value": get_value_or_reg(state, value.args[2]),
         }
     else:
-        print("unknown op")
+        print("unknown op " + value.op, hex(state.regs.pc))
         return {}
 
 
@@ -243,7 +245,7 @@ def evlBr(br: BrIfInfo):
         for active_state in sim.active[:]:
             active_state.regs.pc = pc
     if len(sim.active) != 1:
-        print("active_state len ", len(sim.active))
+        print("active_state len ", len(sim.active), hex(block.addr))
         return None
     reg = cs.reg_name(br.jump_reg)
     reg_value = sim.active[0].regs.get(reg)
@@ -251,7 +253,7 @@ def evlBr(br: BrIfInfo):
         # print(f"reg {reg} is sym")
         return ast2asm(sim.active[0], reg_value)
     else:
-        # print(f"reg {reg} is value")
+        print(f"reg {reg} is value")
         return {
             "value": sim.active[0].solver.eval(reg_value, cast_to=int)
         }
@@ -262,6 +264,7 @@ def make_pathc_info(br_if_list):
         r = evlBr(item)
         item.true_value = r.get("true_value")
         item.false_value = r.get("false_value")
+        item.value = r.get("value")
     return br_if_list
 
 
@@ -290,7 +293,7 @@ class PatchSo:
             self.binary_bytes = f.read()
         self.binary_bytes = bytearray(self.binary_bytes)
 
-    def pathc(self, addr, data: bytes):
+    def patch(self, addr, data: bytes):
         addr = project.loader.main_object.addr_to_offset(addr)
         self.binary_bytes[addr:addr + len(data)] = data
 
@@ -299,69 +302,106 @@ class PatchSo:
             f.write(self.binary_bytes)
 
 
-def patch_br_if(br_if_list):
-    patch = PatchSo(so_path)
-
-    def path(br: BrIfInfo):
-        sp = br.cset.op_str.split(",")
-        op = sp[1].strip()
-        b_inst = None
-        b_if_inst = None
-        if op == "lt":
-            b_if_inst = {
-                "op": "b.lt",
-                "addr": br.true_value
-            }
-        elif op == "eq":
-            b_if_inst = {
-                "op": "b.lt",
-                "addr": br.true_value
-            }
-        else:
-            print("unknown op " + op)
-            return
-        b_inst = {
-            "op": "b",
-            "addr": br.false_value
+def patch_br_if(br):
+    sp = br.cset.op_str.split(",")
+    op = sp[1].strip()
+    b_inst = None
+    b_if_inst = None
+    if op == "lt":
+        b_if_inst = {
+            "op": "b.lt",
+            "addr": br.true_value
         }
+    elif op == "ne":
+        b_if_inst = {
+            "op": "b.ne",
+            "addr": br.true_value
+        }
+    elif op == "eq":
+        b_if_inst = {
+            "op": "b.eq",
+            "addr": br.true_value
+        }
+    elif op == "hi":
+        b_if_inst = {
+            "op": "b.hi",
+            "addr": br.true_value
+        }
+    elif op == "lo":
+        b_if_inst = {
+            "op": "b.lo",
+            "addr": br.true_value
+        }
+    elif op == "gt":
+        b_if_inst = {
+            "op": "b.gt",
+            "addr": br.true_value
+        }
+    else:
+        print("unknown op ", op, hex(br.block_addr))
+        return
+    b_inst = {
+        "op": "b",
+        "addr": br.false_value
+    }
 
-        size = br.br.address - br.cmp.address + 4
-        code = state.memory.load(br.cmp.address, size)
-        code_bytes = state.solver.eval(code, cast_to=bytes)
-        codes = bytes_to_chunks(code_bytes)
-        nop_idx = [
-            int((br.cset.address - br.cmp.address) / 4),
-            int((br.add.address - br.cmp.address) / 4),
-            int((br.adrp.address - br.cmp.address) / 4),
-            int((br.ldr.address - br.cmp.address) / 4),
-            int((br.br.address - br.cmp.address) / 4),
-        ]
+    size = br.br.address - br.cmp.address + 4
+    code = state.memory.load(br.cmp.address, size)
+    code_bytes = state.solver.eval(code, cast_to=bytes)
+    codes = bytes_to_chunks(code_bytes)
+    nop_idx = [
+        int((br.cset.address - br.cmp.address) / 4),
+        int((br.add.address - br.cmp.address) / 4),
+        int((br.adrp.address - br.cmp.address) / 4),
+        int((br.ldr.address - br.cmp.address) / 4),
+        int((br.br.address - br.cmp.address) / 4),
+    ]
 
-        nop = ks.asm("nop", 0, True)[0]
-        for idx in nop_idx:
-            codes[idx] = None
-        codes = move_none_to_end(codes)
-        for idx in range(0, len(codes)):
-            if codes[idx] is None:
-                codes[idx] = nop
-        b_if_addr = br.cmp.address + size - 8
-        b_addr = br.cmp.address + size - 4
-        codes[len(codes) - 2] = ks.asm(b_if_inst["op"] + " " + str(b_if_inst["addr"]), b_if_addr, True)[0]
-        codes[len(codes) - 1] = ks.asm("b " + str(b_inst["addr"]), b_addr, True)[0]
+    nop = ks.asm("nop", 0, True)[0]
+    for idx in nop_idx:
+        codes[idx] = None
+    codes = move_none_to_end(codes)
+    for idx in range(0, len(codes)):
+        if codes[idx] is None:
+            codes[idx] = nop
+    b_if_addr = br.cmp.address + size - 8
+    b_addr = br.cmp.address + size - 4
+    codes[len(codes) - 2] = ks.asm(b_if_inst["op"] + " " + str(b_if_inst["addr"]), b_if_addr, True)[0]
+    codes[len(codes) - 1] = ks.asm("b " + str(b_inst["addr"]), b_addr, True)[0]
+    codes = chunks_to_bytes(codes)
+    return {
+        "addr": br.cmp.address,
+        "codes": codes
+    }
 
-        patch.pathc(br.cmp.address, chunks_to_bytes(codes))
 
-    for item in br_if_list:
-        path(item)
+def patch_br(br):
+    codes = ks.asm("b " + str(br.br.value), br.br.addres, True)[0]
+    return {
+        "addr": br.br.address,
+        "codes": codes
+    }
 
+
+def patch(br_list):
+    patch = PatchSo(so_path)
+    result = []
+    for br in br_list:
+        r = None
+        if br.value != None:
+            r = patch_br(br)
+        else:
+            r = patch_br_if(br)
+        if r:
+            patch.patch(r["addr"], r["codes"])
+            r["codes"] = r["codes"].hex()
+            result.append(r)
     patch.save()
 
 
 # br_list = find_br_if()
-# br_list = load_br_if()
+br_list = load_br_if()
 # br_if_list = filter_br_if(br_list)
-
-
-br = judge_br_if(project.factory.block(0x109284))
-patch_br_if(make_pathc_info([br]))
+# br = judge_br_if(project.factory.block(0x109284))
+patch(make_pathc_info(br_list))
 # print(json.dumps(br_if_list, cls=BrIfInfoEncoder))
