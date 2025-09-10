@@ -137,7 +137,7 @@ def find_br_if():
     return result
 
 
-def load_br_if():
+def load_br_if(path):
     def json2BrIfInfo(item):
         def json2inst(inst_json):
             if not inst_json:
@@ -162,10 +162,11 @@ def load_br_if():
         result.block_addr = item["block_addr"]
         result.true_value = item.get("true_value")
         result.false_value = item.get("false_value")
+        result.value = item.get("value")
         return result
 
     result = []
-    data = json.loads(open("br_if.json", "r").read())
+    data = json.loads(open(path, "r").read())
     for item in data:
         result.append(json2BrIfInfo(item))
     return result
@@ -447,7 +448,7 @@ def patch_br_if(br):
 
 
 def patch_br(br):
-    codes = ks.asm("b " + str(br.br.value), br.br.addres, True)[0]
+    codes = ks.asm("b " + str(br.value), br.br.address, True)[0]
     return {
         "addr": br.br.address,
         "codes": codes
@@ -473,8 +474,9 @@ def patch(br_list):
 
 
 # br_list = find_br_if()
-br_list = load_br_if()
+br_list = load_br_if("br_if_patch.json")
 # br_if_list = filter_br_if(br_list)
 # br = judge_br_if(project.factory.block(0x109284))
-patch(make_pathc_info(br_list))
+# patch(make_pathc_info(br_list))
+patch(br_list)
 # print(json.dumps(br_if_list, cls=BrIfInfoEncoder))
